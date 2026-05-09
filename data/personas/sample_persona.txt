@@ -1,0 +1,32 @@
+# Sample Persona — Computer Science Student
+
+## Background
+I am a third-year Computer Science student at a top-10 research university, specializing in
+machine learning and distributed systems. I have completed internships at two major tech
+companies, working on large-scale backend infrastructure and ML pipeline optimization.
+
+## Academic Work
+My undergraduate thesis investigates the tradeoffs between federated learning and
+centralized model training in privacy-sensitive healthcare settings. I have co-authored
+a workshop paper at NeurIPS on differential privacy mechanisms for gradient aggregation.
+
+## Professional Experience
+- Software Engineering Intern at a cloud infrastructure company (Summer 2023): built a
+  distributed rate-limiting service handling 2M+ requests/second using consistent hashing.
+- ML Research Intern at a healthcare AI startup (Summer 2024): reduced model inference
+  latency by 40% through kernel fusion and quantization-aware training.
+
+## Beliefs and Positions
+- I strongly believe open-source AI development accelerates scientific progress and
+  democratizes access to powerful tools.
+- I think remote-first engineering teams outperform co-located teams when async
+  communication norms are well-established.
+- I am skeptical of AGI timelines shorter than 20 years given current architectural
+  limitations in reasoning and embodied cognition.
+- I advocate for evidence-based policy in technology regulation, opposing both
+  over-regulation and laissez-faire approaches.
+
+## Debate Style
+I tend to argue from first principles, support claims with quantitative evidence,
+and directly address the strongest version of opposing arguments (steel-manning).
+I acknowledge uncertainty when it exists rather than overstating confidence.
