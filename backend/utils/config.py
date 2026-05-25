@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # LLM
     gemini_api_key: str
+    llm_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     judge_model: str = "gemini-flash-latest"
     twin_model: str = "gemini-flash-latest"
     challenger_model: str = "gemini-flash-latest"

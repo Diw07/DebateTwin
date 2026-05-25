@@ -42,7 +42,7 @@ settings = get_settings()
 
 _client = openai.OpenAI(
     api_key=settings.gemini_api_key,
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+    base_url=settings.llm_base_url
 )
 
 _SCORING_RUBRIC = """
