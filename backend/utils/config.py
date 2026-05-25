@@ -19,9 +19,9 @@ class Settings(BaseSettings):
 
     # LLM
     gemini_api_key: str
-    judge_model: str = "gemini-2.5-flash"
-    twin_model: str = "gemini-2.5-flash"
-    challenger_model: str = "gemini-2.5-flash"
+    judge_model: str = "gemini-flash-latest"
+    twin_model: str = "gemini-flash-latest"
+    challenger_model: str = "gemini-flash-latest"
 
     # ChromaDB
     chroma_persist_dir: str = "./chroma_store"

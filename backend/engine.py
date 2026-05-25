@@ -87,7 +87,7 @@ def debate_router(state: dict) -> str:
 
     Decision table
     ~~~~~~~~~~~~~~
-    concede_signal == True   → "judge"   (early termination)
+    concede == True   → "judge"   (early termination)
     current_round > max_rounds → "judge" (natural end)
     otherwise                → "user_twin" (next round)
     """
@@ -106,6 +106,19 @@ def debate_router(state: dict) -> str:
 
     logger.info("Router → user_twin", next_round=current_round)
     return "user_twin"
+
+
+def twin_router(state: dict) -> str:
+    """
+    Conditional edge function after the User Twin node.
+    Routes to the Judge immediately if the user conceded.
+    """
+    concede_event = state.get("concede_event")
+    concede = concede_event.is_set() if concede_event else False
+    if concede:
+        logger.info("Twin Router → judge", reason="concede")
+        return "judge"
+    return "challenger"
 
 
 # ---------------------------------------------------------------------------
@@ -130,8 +143,15 @@ def build_debate_graph() -> Any:
     # Entry point
     builder.set_entry_point("user_twin")
 
-    # Unconditional edges
-    builder.add_edge("user_twin", "challenger")
+    # Conditional routing after User Twin speaks
+    builder.add_conditional_edges(
+        "user_twin",
+        twin_router,
+        {
+            "challenger": "challenger",
+            "judge": "judge",
+        },
+    )
 
     # Conditional routing after Challenger speaks
     builder.add_conditional_edges(

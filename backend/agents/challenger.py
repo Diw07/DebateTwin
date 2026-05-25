@@ -77,8 +77,8 @@ def _build_conversation_messages(state: DebateState) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=30),
     reraise=True,
 )
 def challenger_node(state: dict) -> dict:
@@ -90,6 +90,11 @@ def challenger_node(state: dict) -> dict:
     """
     debate = DebateState(**state)
     callback = state.get("stream_callback")
+
+    concede_event = state.get("concede_event")
+    if concede_event and concede_event.is_set():
+        logger.info("Challenger node: Concede signal detected, skipping turn")
+        return state
 
     logger.info(
         "Challenger node firing",

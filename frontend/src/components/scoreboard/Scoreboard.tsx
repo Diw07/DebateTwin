@@ -10,38 +10,59 @@ import { JudgeRubric } from "@/types/debate";
 // Score bar
 // ---------------------------------------------------------------------------
 
-interface ScoreBarProps {
+interface ScoreComparisonBarProps {
   label: string;
   icon: React.ReactNode;
-  score: number;
+  twinScore: number;
+  challengerScore: number;
   maxScore?: number;
-  color: string;
 }
 
-function ScoreBar({ label, icon, score, maxScore = 10, color }: ScoreBarProps) {
-  const pct = (score / maxScore) * 100;
+function ScoreComparisonBar({ label, icon, twinScore, challengerScore, maxScore = 10 }: ScoreComparisonBarProps) {
+  const twinPct = (twinScore / maxScore) * 100;
+  const challengerPct = (challengerScore / maxScore) * 100;
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-xs">
-        <span className="flex items-center gap-1.5 text-zinc-400 font-mono uppercase tracking-widest">
-          {icon}
-          {label}
-        </span>
-        <span className={cn("font-black text-base tabular-nums", color)}>
-          {score}<span className="text-zinc-600 text-xs font-normal">/10</span>
-        </span>
+    <div className="space-y-2 rounded-md border border-zinc-800 bg-zinc-950/30 p-2.5">
+      <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-mono uppercase tracking-widest">
+        {icon}
+        {label}
       </div>
-      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-        <motion.div
-          className={cn("h-full rounded-full", color.replace("text-", "bg-"))}
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.2 }}
-        />
+      
+      {/* Twin Score */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-cyan-400 font-mono uppercase tracking-wider">Your Twin</span>
+          <span className="font-bold text-cyan-400 tabular-nums">{twinScore}/10</span>
+        </div>
+        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-cyan-500 rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${twinPct}%` }}
+            transition={{ duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.2 }}
+          />
+        </div>
+      </div>
+
+      {/* Challenger Score */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between text-[10px]">
+          <span className="text-rose-400 font-mono uppercase tracking-wider">Challenger</span>
+          <span className="font-bold text-rose-400 tabular-nums">{challengerScore}/10</span>
+        </div>
+        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-rose-500 rounded-full"
+            initial={{ width: 0 }}
+            animate={{ width: `${challengerPct}%` }}
+            transition={{ duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.2 }}
+          />
+        </div>
       </div>
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // Winner banner
@@ -191,34 +212,44 @@ export default function Scoreboard() {
             <WinnerBanner rubric={session.scores} />
 
             <div className="space-y-4">
-              <ScoreBar
+              <ScoreComparisonBar
                 label="Logic"
                 icon={<Brain className="w-3 h-3" />}
-                score={session.scores.logic_score}
-                color="text-cyan-400"
+                twinScore={session.scores.twin_logic}
+                challengerScore={session.scores.challenger_logic}
               />
-              <ScoreBar
+              <ScoreComparisonBar
                 label="Evidence"
                 icon={<FileSearch className="w-3 h-3" />}
-                score={session.scores.evidence_score}
-                color="text-violet-400"
+                twinScore={session.scores.twin_evidence}
+                challengerScore={session.scores.challenger_evidence}
               />
-              <ScoreBar
+              <ScoreComparisonBar
                 label="Rebuttal"
                 icon={<Swords className="w-3 h-3" />}
-                score={session.scores.rebuttal_score}
-                color="text-amber-400"
+                twinScore={session.scores.twin_rebuttal}
+                challengerScore={session.scores.challenger_rebuttal}
               />
             </div>
 
             {/* Total */}
-            <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3 flex items-center justify-between">
-              <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest">Total</span>
-              <span className="text-2xl font-black text-zinc-100 tabular-nums">
-                {session.scores.logic_score + session.scores.evidence_score + session.scores.rebuttal_score}
-                <span className="text-zinc-600 text-sm font-normal">/30</span>
-              </span>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-md border border-zinc-800 bg-cyan-950/10 p-3 flex flex-col justify-between">
+                <span className="text-[10px] font-mono text-cyan-500 uppercase tracking-widest">Twin Total</span>
+                <span className="text-xl font-black text-cyan-400 tabular-nums">
+                  {session.scores.twin_logic + session.scores.twin_evidence + session.scores.twin_rebuttal}
+                  <span className="text-zinc-600 text-xs font-normal">/30</span>
+                </span>
+              </div>
+              <div className="rounded-md border border-zinc-800 bg-rose-950/10 p-3 flex flex-col justify-between">
+                <span className="text-[10px] font-mono text-rose-500 uppercase tracking-widest">Challenger Total</span>
+                <span className="text-xl font-black text-rose-400 tabular-nums">
+                  {session.scores.challenger_logic + session.scores.challenger_evidence + session.scores.challenger_rebuttal}
+                  <span className="text-zinc-600 text-xs font-normal">/30</span>
+                </span>
+              </div>
             </div>
+
 
             {/* Summary */}
             <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3">

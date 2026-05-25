@@ -69,24 +69,37 @@ class JudgeRubric(BaseModel):
     whose cumulative performance was stronger across all rounds.
     """
     winner: AgentRole
-    logic_score: Annotated[int, Field(ge=1, le=10)]
-    evidence_score: Annotated[int, Field(ge=1, le=10)]
-    rebuttal_score: Annotated[int, Field(ge=1, le=10)]
+    twin_logic: Annotated[int, Field(ge=1, le=10)]
+    twin_evidence: Annotated[int, Field(ge=1, le=10)]
+    twin_rebuttal: Annotated[int, Field(ge=1, le=10)]
+    challenger_logic: Annotated[int, Field(ge=1, le=10)]
+    challenger_evidence: Annotated[int, Field(ge=1, le=10)]
+    challenger_rebuttal: Annotated[int, Field(ge=1, le=10)]
     summary: str = Field(min_length=20)
 
     @model_validator(mode="after")
     def compute_total(self) -> "JudgeRubric":
-        # Expose a convenience total without polluting the schema contract
+        # Expose totals
         object.__setattr__(
             self,
-            "_total",
-            self.logic_score + self.evidence_score + self.rebuttal_score,
+            "_twin_total",
+            self.twin_logic + self.twin_evidence + self.twin_rebuttal,
+        )
+        object.__setattr__(
+            self,
+            "_challenger_total",
+            self.challenger_logic + self.challenger_evidence + self.challenger_rebuttal,
         )
         return self
 
     @property
-    def total_score(self) -> int:
-        return getattr(self, "_total", 0)
+    def twin_total_score(self) -> int:
+        return getattr(self, "_twin_total", 0)
+
+    @property
+    def challenger_total_score(self) -> int:
+        return getattr(self, "_challenger_total", 0)
+
 
 
 # ---------------------------------------------------------------------------

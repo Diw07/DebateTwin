@@ -21,11 +21,15 @@ export interface StreamEvent {
 
 export interface JudgeRubric {
   winner: AgentRole;
-  logic_score: number;     // 1–10
-  evidence_score: number;  // 1–10
-  rebuttal_score: number;  // 1–10
+  twin_logic: number;
+  twin_evidence: number;
+  twin_rebuttal: number;
+  challenger_logic: number;
+  challenger_evidence: number;
+  challenger_rebuttal: number;
   summary: string;
 }
+
 
 export interface AgentTurn {
   role: AgentRole;

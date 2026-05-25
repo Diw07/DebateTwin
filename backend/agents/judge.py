@@ -46,7 +46,7 @@ _client = openai.OpenAI(
 )
 
 _SCORING_RUBRIC = """
-Score each debater on three dimensions (1 = very poor, 10 = exceptional):
+Score BOTH debaters on three dimensions (1 = very poor, 10 = exceptional):
 
 1. LOGIC SCORE — Are arguments logically structured? Free of fallacies?
    Are claims connected with clear reasoning chains?
@@ -60,14 +60,18 @@ Score each debater on three dimensions (1 = very poor, 10 = exceptional):
 """
 
 _JSON_SCHEMA_INSTRUCTION = """
-Respond with ONLY a valid JSON object matching this exact schema.
-No markdown. No preamble. No trailing text.
+Your final output MUST end with a valid JSON block enclosed in ```json ... ``` code fences.
+Do NOT output anything else after the closing ```.
 
+JSON Schema format:
 {
-  "winner": "<user_twin | challenger>",
-  "logic_score": <int 1-10>,
-  "evidence_score": <int 1-10>,
-  "rebuttal_score": <int 1-10>,
+  "winner": "user_twin" | "challenger",
+  "twin_logic": <int 1-10>,
+  "twin_evidence": <int 1-10>,
+  "twin_rebuttal": <int 1-10>,
+  "challenger_logic": <int 1-10>,
+  "challenger_evidence": <int 1-10>,
+  "challenger_rebuttal": <int 1-10>,
   "summary": "<2-3 sentence explanation of the result>"
 }
 """
@@ -86,19 +90,22 @@ def _build_transcript(state: DebateState) -> str:
 
 def _extract_json(raw: str) -> dict:
     """
-    Robustly extract a JSON object from Claude's response.
-
-    Handles: bare JSON, JSON wrapped in ```json ... ```, stray whitespace.
+    Robustly extract the JSON object from the Judge's single-pass response.
+    Handles JSON wrapped in ```json ... ``` code fences.
     """
-    # Strip markdown code fences
-    cleaned = re.sub(r"```(?:json)?", "", raw, flags=re.IGNORECASE).strip("` \n")
-
-    # Find the first { ... } block
-    match = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
-    if not match:
-        raise ValueError(f"No JSON object found in Judge response: {raw[:300]}")
-
-    return json.loads(match.group())
+    # Find the JSON block starting with ```json and ending with ```
+    match = re.search(r"```json\s*(.*?)\s*```", raw, flags=re.DOTALL)
+    if match:
+        json_str = match.group(1).strip()
+    else:
+        # Fallback to finding the first { ... } block
+        match_braces = re.search(r"\{.*\}", raw, flags=re.DOTALL)
+        if match_braces:
+            json_str = match_braces.group(0).strip()
+        else:
+            raise ValueError(f"No JSON object found in response: {raw[:300]}")
+    
+    return json.loads(json_str)
 
 
 # ---------------------------------------------------------------------------
@@ -106,17 +113,18 @@ def _extract_json(raw: str) -> dict:
 # ---------------------------------------------------------------------------
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=2, min=4, max=30),
     reraise=True,
 )
 def judge_node(state: dict) -> dict:
     """
     LangGraph node: Judge.
 
-    Two-pass evaluation:
-      Pass 1 → chain-of-thought reasoning (streamed to frontend as analysis).
-      Pass 2 → structured JSON scores (emitted as SCORES event).
+    Single-pass evaluation:
+      - The judge is asked to write its step-by-step reasoning first (streamed to the frontend).
+      - Then it appends a structured JSON block containing the final scores.
+      - The tokens corresponding to the JSON block are suppressed from streaming to keep the UI clean.
     """
     debate = DebateState(**state)
     callback = state.get("stream_callback")
@@ -134,31 +142,41 @@ def judge_node(state: dict) -> dict:
             )
         )
 
-    # ------------------------------------------------------------------
-    # Pass 1: Chain-of-thought analysis (streamed)
-    # ------------------------------------------------------------------
-    analysis_prompt = f"""{transcript}
+    judge_prompt = f"""You are an impartial expert debate judge.
+Evaluate the following debate topic and transcript.
 
-You are an impartial expert debate judge. Analyse the debate above.
+{transcript}
+
+SCORING CRITERIA:
 {_SCORING_RUBRIC}
 
-Think step-by-step about each criterion for BOTH debaters before scoring.
-Do NOT produce JSON yet — just your analysis.
+INSTRUCTIONS:
+1. First, perform a detailed step-by-step evaluation of BOTH debaters (User Twin and Challenger) for each of the three scoring criteria (Logic, Evidence, Rebuttal).
+   CRITICAL: Keep your evaluation for each debater extremely concise (maximum 1-2 sentences per debater per criterion). Do NOT write long paragraphs. This is essential to stay within output token limits.
+2. After your concise evaluation, output a final structured JSON block containing the quantitative scores and winner decision. The JSON block MUST be enclosed in a ```json markdown block.
+
+{_JSON_SCHEMA_INSTRUCTION}
 """
 
-    cot_response = ""
+    full_response = ""
+    in_json_block = False
     try:
         stream = _client.chat.completions.create(
             model=settings.judge_model,
-            max_tokens=800,
-            messages=[{"role": "user", "content": analysis_prompt}],
+            max_tokens=1500,
+            messages=[{"role": "user", "content": judge_prompt}],
             stream=True,
         )
         for chunk in stream:
             text_chunk = chunk.choices[0].delta.content or ""
             if text_chunk:
-                cot_response += text_chunk
-                if callback:
+                full_response += text_chunk
+                
+                # Once we encounter the json code fence, we stop streaming to frontend
+                if "```json" in full_response and not in_json_block:
+                    in_json_block = True
+                
+                if not in_json_block and callback:
                     callback(
                         StreamEvent(
                             event_type=StreamEventType.TOKEN,
@@ -167,49 +185,32 @@ Do NOT produce JSON yet — just your analysis.
                             data=text_chunk,
                         )
                     )
-    except openai.APIError as exc:
-        logger.error("OpenAI API error in Judge (Pass 1)", error=str(exc))
-        raise
-
-    # ------------------------------------------------------------------
-    # Pass 2: Structured JSON output
-    # ------------------------------------------------------------------
-    scoring_prompt = f"""{cot_response}
-
-Based on your analysis above:
-{_JSON_SCHEMA_INSTRUCTION}
-"""
+    except Exception as exc:
+        logger.error("API error in Judge during generation", error=str(exc))
 
     try:
-        score_message = _client.chat.completions.create(
-            model=settings.judge_model,
-            max_tokens=800,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "user", "content": analysis_prompt},
-                {"role": "assistant", "content": cot_response},
-                {"role": "user", "content": scoring_prompt},
-            ],
-        )
-        raw_json = score_message.choices[0].message.content or ""
-        score_dict = _extract_json(raw_json)
+        score_dict = _extract_json(full_response)
 
         # Validate via Pydantic
         rubric = JudgeRubric(**score_dict)
         logger.info(
             "Judge scored debate",
             winner=rubric.winner,
-            total=rubric.total_score,
+            twin_total=rubric.twin_total_score,
+            challenger_total=rubric.challenger_total_score,
         )
     except (openai.APIError, ValueError, json.JSONDecodeError) as exc:
         logger.error("Judge scoring failed", error=str(exc))
         # Fallback rubric — never crash the debate
         rubric = JudgeRubric(
             winner=AgentRole.USER_TWIN,
-            logic_score=5,
-            evidence_score=5,
-            rebuttal_score=5,
-            summary="Scoring failed due to a technical error. Scores are defaults.",
+            twin_logic=5,
+            twin_evidence=5,
+            twin_rebuttal=5,
+            challenger_logic=5,
+            challenger_evidence=5,
+            challenger_rebuttal=5,
+            summary="Scoring failed due to a rate limit or technical error. Default scores applied.",
         )
 
     # Emit scores event to frontend
@@ -234,3 +235,4 @@ Based on your analysis above:
         "scores": rubric,
         "stream_callback": callback,
     }
+
